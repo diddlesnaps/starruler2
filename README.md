@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="snap/gui/sr2.png" alt="Project">
+  <img src="snap/gui/sr2.png" alt="Star Ruler 2">
   <br />
   Star Ruler 2
 </h1>
