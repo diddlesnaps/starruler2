@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=Star Ruler 2
+Comment=Star Ruler 2
+Exec=starruler2
+Icon=${SNAP}/meta/gui/sr2.png
+Categories=Game;
+Terminal=false
+StartupNotify=true
+StartupWMClass=StarRuler2.bin
+Keywords=game

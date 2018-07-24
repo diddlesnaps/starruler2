@@ -1,15 +1,165 @@
-name: my-snap-name # you probably want to 'snapcraft register <name>'
-version: '0.1' # just for humans, typically '1.2+git' or '1.3.2'
-summary: Single-line elevator pitch for your amazing snap # 79 char long summary
-description: |
-  This is my-snap's description. You have a paragraph or two to tell the
-  most important story about your snap. Keep it under 100 words though,
-  we live in tweetspace and your description wants to look good in the snap
-  store.
+name: starruler2
+version: '2.0'
+icon: snap/gui/sr2.png
+summary: A massive scale 4X/RTS set in space
+description: >
+  Explore dozens, hundreds, or even thousands of systems in a galaxy of your
+  choosing, expand across its planets, exploit the resources you find, and
+  ultimately exterminate any who stand in your way. The fate of your empire
+  depends on your ability to master the economy, field a military, influence
+  galactic politics, and learn what you can about the universe.
 
-confinement: devmode # use 'strict' once you have the right plugs and slots
+grade: stable
+confinement: strict
 
 parts:
-  my-part:
-    # See 'snapcraft plugins'
+  fix-pkgconfig-files:
     plugin: nil
+    override-build: |
+      cat <<EOF > $SNAPCRAFT_PART_INSTALL/fix-pkgconfig-files.sh
+      for pcfile in \$SNAPCRAFT_PART_INSTALL/usr/lib/\$SNAPCRAFT_ARCH_TRIPLET/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/lib/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/local/lib/\$SNAPCRAFT_ARCH_TRIPLET/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/local/lib/pkgconfig/*.pc; do
+        sed -i -E "s~^((include|lib)dir=)/usr(/local)?~\1\\\${prefix}~g" \$pcfile || true
+        sed -i -E "s~^((exec_)?prefix=)(/usr(/local)?)~\1/\3~" \$pcfile || true
+      done
+      EOF
+      chmod +x $SNAPCRAFT_PART_INSTALL/fix-pkgconfig-files.sh
+    prime:
+    - -*
+
+  starruler2:
+    after: [desktop-glib-only, freetype]
+    plugin: make
+    source: https://github.com/BlindMindStudios/StarRuler2-Source.git
+    override-pull: |
+      snapcraftctl pull
+      sed -i -E 's/(CXXFLAGS="\$ARCHFLAGS)(" make all -j6)/\1 -std=c++11\2/' source/linux/build.sh
+      sed -i -E 's/^(.*) \$\(LDFLAGS\) (.*)$/\1 \2 $(LDFLAGS)/g' source/linux/Makefile
+    override-build: |
+      export CXXFLAGS="$CXXFLAGS -I$SNAPCRAFT_STAGE/usr/include/freetype2"
+      export LDFLAGS="$LDFLAGS -L/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/mesa"
+
+      make -j$SNAPCRAFT_PARALLEL_BUILD_COUNT -f source/linux/Makefile compile
+
+      install -D -t $SNAPCRAFT_PART_INSTALL/starruler2/ \
+        StarRuler2.sh \
+        COPYING \
+        credits.txt
+
+      for i in bin/lin*; do
+        install -D -t $SNAPCRAFT_PART_INSTALL/starruler2/$i $i/StarRuler2.bin
+      done
+
+      recurse() {
+        for i in "$1"/*; do [ -d "$i" ] && recurse "$i"; done
+        install -D -t "$SNAPCRAFT_PART_INSTALL/starruler2/$1" "$1/"* || true
+      }
+      recurse data
+      recurse locales
+      recurse maps
+      recurse mods
+      recurse scripts
+    stage:
+      - -starruler2/bin/win64
+    build-packages:
+    - cmake
+    - libbz2-dev
+    - libcurl4-openssl-dev
+    - libglew-dev
+    - libglu1-mesa-dev
+    - libogg-dev
+    - libopenal-dev
+    - libpng16-dev
+    - libpulse-dev
+    - libstdc++-5-dev
+    - libvorbis-dev
+    - libxi-dev
+    - libxrandr-dev
+    - zlib1g-dev
+    stage-packages:
+    - libbz2-1.0
+    - libcurl3
+    - libglew1.13
+    - libglu1-mesa
+    - libogg0
+    - libopenal1
+    - libpng16-16
+    - libpulse0
+    - libstdc++6
+    - libvorbis0a
+    - libvorbisfile3
+    - libxi6
+    - libxrandr2
+    - zlib1g
+
+  freetype-prebuild:
+    after:
+    - fix-pkgconfig-files
+    source: https://download.savannah.gnu.org/releases/freetype/freetype-2.9.1.tar.bz2
+    plugin: autotools
+    configflags:
+    - --prefix=/usr/local
+    - --without-harfbuzz
+    - --disable-static
+    override-build: |
+      snapcraftctl build
+      $SNAPCRAFT_STAGE/fix-pkgconfig-files.sh
+    build-packages:
+    - libpng16-dev
+    prime:
+    - -*
+
+  # https://download.savannah.gnu.org/releases/freetype
+  freetype:
+    after:
+    - harfbuzz
+    source: https://download.savannah.gnu.org/releases/freetype/freetype-2.9.1.tar.bz2
+    plugin: autotools
+    configflags:
+    - --prefix=/usr
+    - --disable-static
+    build-packages:
+      - libpng16-dev
+    stage-packages:
+      - libpng16-16
+
+  harfbuzz:
+    after:
+    - fix-pkgconfig-files
+    - freetype-prebuild
+    source: https://www.freedesktop.org/software/harfbuzz/release/harfbuzz-1.7.6.tar.bz2
+    source-checksum: sha256/da7bed39134826cd51e57c29f1dfbe342ccedb4f4773b1c951ff05ff383e2e9b
+    plugin: autotools
+    configflags:
+    - --prefix=/usr
+    - --disable-static
+    - --with-cairo=no
+    disable-parallel: true
+    override-build: |
+      apt-get remove -yyq libfreetype6
+      mkdir -p $SNAPCRAFT_STAGE/usr/lib
+      ln -s $SNAPCRAFT_STAGE/usr/local/lib/libfreetype.so \
+            $SNAPCRAFT_STAGE/usr/local/lib/libfreetype.so.6 \
+            $SNAPCRAFT_STAGE/usr/lib/
+      snapcraftctl build
+      # ./configure --prefix=/usr --disable-static --with-cairo=no
+      # make V=1
+      $SNAPCRAFT_STAGE/fix-pkgconfig-files.sh
+      rm -f $SNAPCRAFT_STAGE/usr/lib/libfreetype.so*
+    build-packages:
+    - libicu-dev
+    - libglib2.0-dev
+    stage-packages:
+    - libicu55
+    - libglib2.0-0
+
+apps:
+  starruler2:
+    command: desktop-launch $SNAP/starruler2/StarRuler2.sh
+    plugs:
+    - desktop
+    - desktop-legacy
+    - network
+    - opengl
+    - pulseaudio
+    - x11
+    - wayland
