@@ -136,15 +136,15 @@ parts:
     disable-parallel: true
     override-build: |
       apt-get remove -yyq libfreetype6
-      mkdir -p $SNAPCRAFT_STAGE/usr/lib
+      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib
       ln -s $SNAPCRAFT_STAGE/usr/local/lib/libfreetype.so \
             $SNAPCRAFT_STAGE/usr/local/lib/libfreetype.so.6 \
-            $SNAPCRAFT_STAGE/usr/lib/
+            $SNAPCRAFT_PART_INSTALL/usr/lib/
       snapcraftctl build
       # ./configure --prefix=/usr --disable-static --with-cairo=no
       # make V=1
       $SNAPCRAFT_STAGE/fix-pkgconfig-files.sh
-      rm -f $SNAPCRAFT_STAGE/usr/lib/libfreetype.so*
+      rm -f $SNAPCRAFT_PART_INSTALL/usr/lib/libfreetype.so*
     build-packages:
     - libicu-dev
     - libglib2.0-dev
