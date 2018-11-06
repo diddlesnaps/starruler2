@@ -12,6 +12,19 @@ description: >
 grade: stable
 confinement: strict
 
+architectures:
+  - build-on: amd64
+  - build-on: i386
+
+# passthrough:
+#   layout:
+#     /starruler2:
+#       bind: $SNAP/starruler2
+#     /starruler2/mods:
+#       bind: $SNAP_USER_COMMON/mods
+#     /starruler2/music:
+#       bind: $SNAP_USER_COMMON/music
+
 parts:
   fix-pkgconfig-files:
     plugin: nil
@@ -25,6 +38,30 @@ parts:
       chmod +x $SNAPCRAFT_PART_INSTALL/fix-pkgconfig-files.sh
     prime:
     - -*
+
+  # ensure-moddable:
+  #   plugin: nil
+  #   override-pull: |
+  #     cat <<EOF > ensure-moddable
+  #     #!/bin/sh
+  #     needs_update=true
+      
+  #     . \$SNAP_USER_DATA/.last_mods_revision 2>/dev/null || true
+  #     if [ "\$SNAP_DESKTOP_LAST_REVISION" = "\$SNAP_REVISION" ]; then
+  #       needs_update=false
+  #     fi
+
+  #     if [ \$needs_update = true ]; then
+  #       mkdir -p "\$SNAPCRAFT_COMMON/mods" "\$SNAPCRAFT_COMMON/music"
+  #       rsync -rv "\$SNAP/starruler2/mods.real/" "\$SNAPCRAFT_COMMON/mods/"
+  #     fi
+
+  #     [ \$needs_update = true ] && echo "SNAP_DESKTOP_LAST_REVISION=\$SNAP_REVISION" > \$SNAP_USER_DATA/.last_mods_revision
+      
+  #     exec "\$@"
+  #     EOF
+  #   override-build: |
+  #     install -m755 -D -t "$SNAPCRAFT_PART_INSTALL/bin" ensure-moddable
 
   starruler2:
     after: [desktop-glib-only, freetype]
@@ -49,17 +86,22 @@ parts:
         install -D -t $SNAPCRAFT_PART_INSTALL/starruler2/$i $i/StarRuler2.bin
       done
 
+      bash -c '
       recurse() {
-        for i in "$1"/*; do [ -d "$i" ] && recurse "$i"; done
-        install -D -t "$SNAPCRAFT_PART_INSTALL/starruler2/$1" "$1/"* || true
+        source="$1"
+        target="$2"
+
+        find "$source" -type d -print0 | xargs -0 bash -c "install -m 755 -d \"$SNAPCRAFT_PART_INSTALL/starruler2/\${1/$source/$target}\""
+        find "$source" -type f -print0 | xargs -0 bash -c "install -m 644 -D -t \"$SNAPCRAFT_PART_INSTALL/starruler2/\$(dirname \"\${1/$source/$target}\")\" \"$1\""
       }
-      recurse data
-      recurse locales
-      recurse maps
-      recurse mods
-      recurse scripts
+      recurse data data
+      recurse locales locales
+      recurse maps maps
+      recurse mods mods.real
+      recurse scripts scripts
+      '
     stage:
-      - -starruler2/bin/win64
+    - -starruler2/bin/win64
     build-packages:
     - cmake
     - libbz2-dev
@@ -72,6 +114,7 @@ parts:
     - libpulse-dev
     - libstdc++-5-dev
     - libvorbis-dev
+    - libwayland-dev
     - libxi-dev
     - libxrandr-dev
     - zlib1g-dev
@@ -87,6 +130,8 @@ parts:
     - libstdc++6
     - libvorbis0a
     - libvorbisfile3
+    - libwayland-client0
+    - libwayland-cursor0
     - libxi6
     - libxrandr2
     - zlib1g
@@ -118,9 +163,9 @@ parts:
     - --prefix=/usr
     - --disable-static
     build-packages:
-      - libpng16-dev
+    - libpng16-dev
     stage-packages:
-      - libpng16-16
+    - libpng16-16
 
   harfbuzz:
     after:
