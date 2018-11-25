@@ -27,15 +27,15 @@ architectures:
 
 parts:
   fix-pkgconfig-files:
-    plugin: nil
-    override-build: |
-      cat <<EOF > $SNAPCRAFT_PART_INSTALL/fix-pkgconfig-files.sh
+    plugin: dump
+    override-pull: |
+      cat <<EOF > fix-pkgconfig-files.sh
       for pcfile in \$SNAPCRAFT_PART_INSTALL/usr/lib/\$SNAPCRAFT_ARCH_TRIPLET/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/lib/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/local/lib/\$SNAPCRAFT_ARCH_TRIPLET/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/local/lib/pkgconfig/*.pc; do
         sed -i -E "s~^((include|lib)dir=)/usr(/local)?~\1\\\${prefix}~g" \$pcfile || true
         sed -i -E "s~^((exec_)?prefix=)(/usr(/local)?)~\1/\3~" \$pcfile || true
       done
       EOF
-      chmod +x $SNAPCRAFT_PART_INSTALL/fix-pkgconfig-files.sh
+      chmod +x fix-pkgconfig-files.sh
     prime:
     - -*
 
@@ -67,6 +67,7 @@ parts:
     after: [desktop-glib-only, freetype]
     plugin: make
     source: https://github.com/BlindMindStudios/StarRuler2-Source.git
+    source-depth: 1
     override-pull: |
       snapcraftctl pull
       sed -i -E 's/(CXXFLAGS="\$ARCHFLAGS)(" make all -j6)/\1 -std=c++11\2/' source/linux/build.sh
@@ -86,20 +87,21 @@ parts:
         install -D -t $SNAPCRAFT_PART_INSTALL/starruler2/$i $i/StarRuler2.bin
       done
 
-      bash -c '
+      bash <<EOF
       recurse() {
-        source="$1"
-        target="$2"
+        source="\$1"
+        target="\$2"
+        [ -z "$target" ] && target="$source"
 
-        find "$source" -type d -print0 | xargs -0 bash -c "install -m 755 -d \"$SNAPCRAFT_PART_INSTALL/starruler2/\${1/$source/$target}\""
-        find "$source" -type f -print0 | xargs -0 bash -c "install -m 644 -D -t \"$SNAPCRAFT_PART_INSTALL/starruler2/\$(dirname \"\${1/$source/$target}\")\" \"$1\""
+        find "\$source" -type d -print0 | xargs -0 bash -c 'install -m 755 -d "$SNAPCRAFT_PART_INSTALL/starruler2/\${1/\$source/\$target}"'
+        find "\$source" -type f -print0 | xargs -0 bash -c 'install -m 644 -D -t "$SNAPCRAFT_PART_INSTALL/starruler2/\$(dirname "\${1/\$source/\$target}")" "\$1"'
       }
-      recurse data data
-      recurse locales locales
-      recurse maps maps
-      recurse mods mods.real
-      recurse scripts scripts
-      '
+      recurse data
+      recurse locales
+      recurse maps
+      recurse mods # mods.real # <-- change the dirname to allow for modding
+      recurse scripts
+      EOF
     stage:
     - -starruler2/bin/win64
     build-packages:
