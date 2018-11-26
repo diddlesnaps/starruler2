@@ -91,10 +91,10 @@ parts:
       recurse() {
         source="\$1"
         target="\$2"
-        [ -z "$target" ] && target="$source"
+        [ -z "\$target" ] && target="\$source"
 
-        find "\$source" -type d -print0 | xargs -0 bash -c 'install -m 755 -d "$SNAPCRAFT_PART_INSTALL/starruler2/\${1/\$source/\$target}"'
-        find "\$source" -type f -print0 | xargs -0 bash -c 'install -m 644 -D -t "$SNAPCRAFT_PART_INSTALL/starruler2/\$(dirname "\${1/\$source/\$target}")" "\$1"'
+        find "\$source" -type d -print0 | xargs -0 -l bash -c 'install -m 755 -d "$SNAPCRAFT_PART_INSTALL/starruler2/\${0/\$source/\$target}"'
+        find "\$source" -type f -print0 | xargs -0 -l bash -c 'install -m 644 -D -t "$SNAPCRAFT_PART_INSTALL/starruler2/\$(dirname "\${0/\$source/\$target}")" "\$0"'
       }
       recurse data
       recurse locales
