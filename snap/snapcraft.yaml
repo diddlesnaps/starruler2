@@ -45,7 +45,7 @@ parts:
   #     cat <<EOF > ensure-moddable
   #     #!/bin/sh
   #     needs_update=true
-      
+
   #     . \$SNAP_USER_DATA/.last_mods_revision 2>/dev/null || true
   #     if [ "\$SNAP_DESKTOP_LAST_REVISION" = "\$SNAP_REVISION" ]; then
   #       needs_update=false
@@ -57,7 +57,7 @@ parts:
   #     fi
 
   #     [ \$needs_update = true ] && echo "SNAP_DESKTOP_LAST_REVISION=\$SNAP_REVISION" > \$SNAP_USER_DATA/.last_mods_revision
-      
+
   #     exec "\$@"
   #     EOF
   #   override-build: |
@@ -203,6 +203,7 @@ apps:
   starruler2:
     command: desktop-launch $SNAP/starruler2/StarRuler2.sh
     plugs:
+    - audio-playback
     - desktop
     - desktop-legacy
     - network
