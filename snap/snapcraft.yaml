@@ -11,10 +11,11 @@ description: >
 
 grade: stable
 confinement: strict
+base: core22
 
 architectures:
   - build-on: amd64
-  - build-on: i386
+  # - build-on: arm64
 
 # passthrough:
 #   layout:
@@ -26,19 +27,6 @@ architectures:
 #       bind: $SNAP_USER_COMMON/music
 
 parts:
-  fix-pkgconfig-files:
-    plugin: dump
-    override-pull: |
-      cat <<EOF > fix-pkgconfig-files.sh
-      for pcfile in \$SNAPCRAFT_PART_INSTALL/usr/lib/\$SNAPCRAFT_ARCH_TRIPLET/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/lib/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/local/lib/\$SNAPCRAFT_ARCH_TRIPLET/pkgconfig/*.pc \$SNAPCRAFT_PART_INSTALL/usr/local/lib/pkgconfig/*.pc; do
-        sed -i -E "s~^((include|lib)dir=)/usr(/local)?~\1\\\${prefix}~g" \$pcfile || true
-        sed -i -E "s~^((exec_)?prefix=)(/usr(/local)?)~\1/\3~" \$pcfile || true
-      done
-      EOF
-      chmod +x fix-pkgconfig-files.sh
-    prime:
-    - -*
-
   # ensure-moddable:
   #   plugin: nil
   #   override-pull: |
@@ -64,150 +52,71 @@ parts:
   #     install -m755 -D -t "$SNAPCRAFT_PART_INSTALL/bin" ensure-moddable
 
   starruler2:
-    after: [desktop-glib-only, freetype]
     plugin: make
-    source: https://github.com/BlindMindStudios/StarRuler2-Source.git
+    source: https://github.com/OpenSRProject/OpenStarRuler.git
+    source-branch: v1.0.0
     source-depth: 1
-    override-pull: |
-      snapcraftctl pull
-      sed -i -E 's/(CXXFLAGS="\$ARCHFLAGS)(" make all -j6)/\1 -std=c++11\2/' source/linux/build.sh
-      sed -i -E 's/^(.*) \$\(LDFLAGS\) (.*)$/\1 \2 $(LDFLAGS)/g' source/linux/Makefile
+    # override-pull: |
+    #   snapcraftctl pull
+    #   patch -Np1 -i "$SNAPCRAFT_PROJECT_DIR/patches/arm-support.patch"
+    #   patch -Np1 -i "$SNAPCRAFT_PROJECT_DIR/patches/os-asm.patch"
     override-build: |
-      export CXXFLAGS="$CXXFLAGS -I$SNAPCRAFT_STAGE/usr/include/freetype2"
-      export LDFLAGS="$LDFLAGS -L/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/mesa"
+      make -j"$SNAPCRAFT_PARALLEL_BUILD_COUNT" -f source/linux/Makefile compile
 
-      make -j$SNAPCRAFT_PARALLEL_BUILD_COUNT -f source/linux/Makefile compile
-
-      install -D -t $SNAPCRAFT_PART_INSTALL/starruler2/ \
+      install -D -t "$SNAPCRAFT_PART_INSTALL"/starruler2/ \
         StarRuler2.sh \
         COPYING \
         credits.txt
 
       for i in bin/lin*; do
-        install -D -t $SNAPCRAFT_PART_INSTALL/starruler2/$i $i/StarRuler2.bin
+        install -D -t "$SNAPCRAFT_PART_INSTALL/starruler2/$i" "$i/StarRuler2.bin"
       done
-
-      bash <<EOF
-      recurse() {
-        source="\$1"
-        target="\$2"
-        [ -z "\$target" ] && target="\$source"
-
-        find "\$source" -type d -print0 | xargs -0 -l bash -c 'install -m 755 -d "$SNAPCRAFT_PART_INSTALL/starruler2/\${0/\$source/\$target}"'
-        find "\$source" -type f -print0 | xargs -0 -l bash -c 'install -m 644 -D -t "$SNAPCRAFT_PART_INSTALL/starruler2/\$(dirname "\${0/\$source/\$target}")" "\$0"'
-      }
-      recurse data
-      recurse locales
-      recurse maps
-      recurse mods # mods.real # <-- change the dirname to allow for modding
-      recurse scripts
-      EOF
     stage:
     - -starruler2/bin/win64
-    build-packages:
+    build-environment:
+    - CPATH: /snap/gnome-42-2204-sdk/current/usr/include:/snap/gnome-42-2204-sdk/current/usr/include/freetype2:/snap/gnome-42-2204-sdk/current/usr/include/libpng
+    - LIBRARY_PATH: /usr/lib/gcc/x86_64-linux-gnu/11:/snap/gnome-42-2204-sdk/current/usr/lib:/snap/gnome-42-2204-sdk/current/lib:/snap/core22/current/usr/lib:/snap/core22/current/lib
+    build-snaps:
     - cmake
+    build-packages:
     - libbz2-dev
     - libcurl4-openssl-dev
     - libglew-dev
     - libglu1-mesa-dev
     - libogg-dev
     - libopenal-dev
-    - libpng16-dev
-    - libpulse-dev
-    - libstdc++-5-dev
+    - libstdc++-11-dev
     - libvorbis-dev
-    - libwayland-dev
     - libxi-dev
     - libxrandr-dev
-    - zlib1g-dev
+    - libxxf86vm-dev
     stage-packages:
-    - libbz2-1.0
-    - libcurl3
-    - libglew1.13
+    - libcurl4
+    - libglew2.2
     - libglu1-mesa
     - libogg0
     - libopenal1
-    - libpng16-16
-    - libpulse0
-    - libstdc++6
     - libvorbis0a
     - libvorbisfile3
-    - libwayland-client0
-    - libwayland-cursor0
-    - libxi6
-    - libxrandr2
-    - zlib1g
 
-  freetype-prebuild:
-    after:
-    - fix-pkgconfig-files
-    source: https://download.savannah.gnu.org/releases/freetype/freetype-2.9.1.tar.bz2
-    plugin: autotools
-    configflags:
-    - --prefix=/usr/local
-    - --without-harfbuzz
-    - --disable-static
-    override-build: |
-      snapcraftctl build
-      $SNAPCRAFT_STAGE/fix-pkgconfig-files.sh
-    build-packages:
-    - libpng16-dev
-    prime:
-    - -*
-
-  # https://download.savannah.gnu.org/releases/freetype
-  freetype:
-    after:
-    - harfbuzz
-    source: https://download.savannah.gnu.org/releases/freetype/freetype-2.9.1.tar.bz2
-    plugin: autotools
-    configflags:
-    - --prefix=/usr
-    - --disable-static
-    build-packages:
-    - libpng16-dev
-    stage-packages:
-    - libpng16-16
-
-  harfbuzz:
-    after:
-    - fix-pkgconfig-files
-    - freetype-prebuild
-    source: https://www.freedesktop.org/software/harfbuzz/release/harfbuzz-1.7.6.tar.bz2
-    source-checksum: sha256/da7bed39134826cd51e57c29f1dfbe342ccedb4f4773b1c951ff05ff383e2e9b
-    plugin: autotools
-    configflags:
-    - --prefix=/usr
-    - --disable-static
-    - --with-cairo=no
-    disable-parallel: true
-    override-build: |
-      apt-get remove -yyq libfreetype6
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib
-      ln -s $SNAPCRAFT_STAGE/usr/local/lib/libfreetype.so \
-            $SNAPCRAFT_STAGE/usr/local/lib/libfreetype.so.6 \
-            $SNAPCRAFT_PART_INSTALL/usr/lib/
-      snapcraftctl build
-      # ./configure --prefix=/usr --disable-static --with-cairo=no
-      # make V=1
-      $SNAPCRAFT_STAGE/fix-pkgconfig-files.sh
-      rm -f $SNAPCRAFT_PART_INSTALL/usr/lib/libfreetype.so*
-    build-packages:
-    - libicu-dev
-    - libglib2.0-dev
-    stage-packages:
-    - libicu55
-    - libglib2.0-0
+  starruler2-data:
+    after: [starruler2]
+    plugin: dump
+    source: https://github.com/OpenSRProject/OpenStarRuler-Data/archive/refs/tags/v1.0.0.tar.gz
+    stage:
+      - starruler2
+    organize:
+      data: starruler2/data
+      locales: starruler2/locales
+      maps: starruler2/maps
+      mods: starruler2/mods
+      scripts: starruler2/scripts
 
 apps:
   starruler2:
-    command: desktop-launch $SNAP/starruler2/StarRuler2.sh
+    command: starruler2/StarRuler2.sh
+    extensions: [gnome]
     plugs:
     - audio-playback
-    - desktop
-    - desktop-legacy
     - network
     - opengl
-    - pulseaudio
-    - x11
-    - wayland
